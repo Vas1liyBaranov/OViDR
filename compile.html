@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сборка targets.mind</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 720px; margin: 30px auto; padding: 0 16px; }
+    .row { display: flex; gap: 12px; margin: 16px 0; }
+    .row img { width: 32%; border: 1px solid #ccc; }
+    button, a.btn {
+      font-size: 17px; padding: 10px 18px; border-radius: 8px; border: none;
+      background: #2e9e4f; color: white; cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    button:disabled { background: #999; cursor: default; }
+    #log { margin-top: 16px; white-space: pre-wrap; color: #333; }
+  </style>
+</head>
+<body>
+  <h2>Сборка файла маркеров targets.mind</h2>
+  <p>MindAR ищет маркеры по файлу <code>targets.mind</code>: в нём записаны характерные точки
+     каждой картинки. Страница собирает его из трёх картинок в папке <code>markers</code>
+     в таком порядке (он важен — это targetIndex 0, 1, 2):</p>
+
+  <div class="row">
+    <img src="markers/lathe.png" alt="lathe">
+    <img src="markers/mill.png" alt="mill">
+    <img src="markers/printer.png" alt="printer">
+  </div>
+
+  <button id="go">Собрать targets.mind</button>
+  <span id="dl"></span>
+  <div id="log"></div>
+
+  <script>
+    const FILES = ["markers/lathe.png", "markers/mill.png", "markers/printer.png"];
+    const CDN = "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/";
+    const log = (t) => { document.getElementById("log").textContent += t + "\n"; };
+
+    function loadScript(src) {
+      return new Promise((ok, fail) => {
+        const s = document.createElement("script");
+        s.src = src; s.onload = ok; s.onerror = fail;
+        document.head.append(s);
+      });
+    }
+
+    function loadImage(src) {
+      return new Promise((ok, fail) => {
+        const img = new Image();
+        img.onload = () => ok(img);
+        img.onerror = () => fail(new Error("не загрузилась картинка " + src));
+        img.src = src;
+      });
+    }
+
+    // класс Compiler есть в сборках MindAR; пробуем модульную, затем сборку для A-Frame
+    async function getCompiler() {
+      const fromWindow = () => window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.Compiler;
+      try {
+        const mod = await import(CDN + "mindar-image.prod.js");
+        if (mod.Compiler) return mod.Compiler;
+        if (fromWindow()) return fromWindow();
+      } catch (e) { log("Модульная сборка не подошла, пробую другую…"); }
+      await loadScript("https://aframe.io/releases/1.5.0/aframe.min.js");
+      await loadScript(CDN + "mindar-image-aframe.prod.js");
+      if (fromWindow()) return fromWindow();
+      throw new Error("в библиотеке MindAR не найден Compiler");
+    }
+
+    document.getElementById("go").onclick = async () => {
+      const btn = document.getElementById("go");
+      btn.disabled = true;
+      try {
+        log("Загружаю MindAR…");
+        const Compiler = await getCompiler();
+        const images = [];
+        for (const f of FILES) images.push(await loadImage(f));
+
+        log("Ищу характерные точки на картинках, это займёт 10–60 секунд…");
+        const compiler = new Compiler();
+        await compiler.compileImageTargets(images, (p) => {
+          btn.textContent = "Сборка… " + Math.round(p) + "%";
+        });
+        const data = await compiler.exportData();
+
+        const url = URL.createObjectURL(new Blob([data]));
+        const a = document.createElement("a");
+        a.href = url; a.download = "targets.mind"; a.className = "btn";
+        a.textContent = "Скачать targets.mind";
+        document.getElementById("dl").append(" ", a);
+        a.click();
+        btn.textContent = "Готово";
+        log("Готово. Положите targets.mind в папку проекта рядом с index.html и опубликуйте (git push).");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Собрать targets.mind";
+        log("Ошибка: " + e.message);
+        log("Запасной вариант: откройте https://hiukim.github.io/mind-ar-js-doc/tools/compile, " +
+            "загрузите lathe.png, mill.png, printer.png именно в этом порядке и скачайте targets.mind.");
+      }
+    };
+  </script>
+</body>
+</html>
