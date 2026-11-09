@@ -66,48 +66,19 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
+    <!-- свет: рассеянный и направленный, чтобы металл и краска выглядели объёмно -->
+    <a-entity light="type: ambient; intensity: 0.7"></a-entity>
+    <a-entity light="type: directional; intensity: 0.9" position="0.5 1 1"></a-entity>
+
     <!-- Подставка: стоит там, где последний найденный маркер, и остаётся, когда маркер пропал.
          У MindAR маркер лежит в плоскости XY, ось Z направлена к камере. Модели построены
          с осью Y «вверх», поэтому каждая повёрнута на 90° вокруг X и встаёт над картинкой. -->
     <a-entity id="holder">
 
-      <!-- Модель 1: токарный станок -->
-      <a-entity id="model-lathe" visible="false">
-        <a-entity rotation="90 0 0">
-          <a-box position="0 0.1 0" width="1" height="0.2" depth="0.4" color="#4a5a6a"></a-box>
-          <a-box position="-0.37 0.35 0" width="0.26" height="0.3" depth="0.4" color="#2f3b47"></a-box>
-          <a-cylinder position="-0.19 0.35 0" rotation="0 0 90" radius="0.12" height="0.08" color="#9aa3ab"></a-cylinder>
-          <a-cylinder position="0.06 0.35 0" rotation="0 0 90" radius="0.05" height="0.42" color="#c9a227"></a-cylinder>
-          <a-box position="0.38 0.32 0" width="0.16" height="0.24" depth="0.3" color="#2f3b47"></a-box>
-          <a-sphere class="lamp" position="-0.37 0.57 0" radius="0.07"></a-sphere>
-          <a-plane class="card" position="0 0.01 -1.2" rotation="-90 0 0" width="2" height="1.25"></a-plane>
-        </a-entity>
-      </a-entity>
-
-      <!-- Модель 2: фрезерный станок с ЧПУ -->
-      <a-entity id="model-mill" visible="false">
-        <a-entity rotation="90 0 0">
-          <a-box position="0 0.08 0" width="0.9" height="0.16" depth="0.5" color="#4a5a6a"></a-box>
-          <a-box position="0 0.4 -0.2" width="0.34" height="0.64" depth="0.16" color="#2f3b47"></a-box>
-          <a-box position="0 0.6 -0.02" width="0.26" height="0.2" depth="0.28" color="#2f3b47"></a-box>
-          <a-cylinder position="0 0.42 0.04" radius="0.04" height="0.16" color="#9aa3ab"></a-cylinder>
-          <a-box position="0 0.2 0.05" width="0.3" height="0.08" depth="0.2" color="#c9a227"></a-box>
-          <a-sphere class="lamp" position="0 0.79 -0.2" radius="0.07"></a-sphere>
-          <a-plane class="card" position="0 0.01 -1.2" rotation="-90 0 0" width="2" height="1.25"></a-plane>
-        </a-entity>
-      </a-entity>
-
-      <!-- Модель 3: 3D-принтер -->
-      <a-entity id="model-printer" visible="false">
-        <a-entity rotation="90 0 0">
-          <a-box position="0 0.4 0" width="0.8" height="0.8" depth="0.8" material="color: #2f3b47; wireframe: true"></a-box>
-          <a-box position="0 0.15 0" width="0.7" height="0.03" depth="0.7" color="#4a5a6a"></a-box>
-          <a-cylinder position="0 0.24 0" radius="0.12" height="0.15" color="#c9a227"></a-cylinder>
-          <a-box position="0 0.5 0" width="0.14" height="0.1" depth="0.14" color="#9aa3ab"></a-box>
-          <a-sphere class="lamp" position="0.32 0.87 -0.32" radius="0.07"></a-sphere>
-          <a-plane class="card" position="0 0.01 -1.2" rotation="-90 0 0" width="2" height="1.25"></a-plane>
-        </a-entity>
-      </a-entity>
+      <!-- Модели собираются из деталей, описанных в models.json (см. models.js) -->
+      <a-entity id="model-lathe" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
+      <a-entity id="model-mill" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
+      <a-entity id="model-printer" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
     </a-entity>
 
     <!-- Маркеры только распознают картинки: targetIndex — номер картинки в targets.mind -->
@@ -116,6 +87,7 @@
     <a-entity id="target-printer" mindar-image-target="targetIndex: 2"></a-entity>
   </a-scene>
 
+  <script src="models.js"></script>
   <script>
     const IDS = ["lathe", "mill", "printer"]; // порядок = targetIndex 0, 1, 2
 
@@ -248,7 +220,7 @@
         // карточка с данными и пульсирующая сфера цвета состояния
         box.querySelector(".card").setAttribute("material", { shader: "flat", src: makeCard(m, st) });
         const lamp = box.querySelector(".lamp");
-        lamp.setAttribute("color", st.color);
+        lamp.setAttribute("material", { color: st.color, emissive: st.color, emissiveIntensity: 0.5 });
         lamp.setAttribute("animation", {
           property: "scale", to: "1.4 1.4 1.4", dir: "alternate", loop: true, dur: 700
         });
@@ -326,15 +298,17 @@
     });
 
     // данные хранятся отдельно от кода и загружаются при открытии страницы
-    fetch("machines.json", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch("machines.json", { cache: "no-store" }).then((r) => r.json()),
+      loadModels(false)
+    ])
+      .then(([data]) => {
         machines = data;
         if (scene.hasLoaded) setup();
         else scene.addEventListener("loaded", setup);
       })
       .catch(() => {
-        setStatus("Не удалось загрузить machines.json. Откройте страницу через сервер, а не двойным щелчком");
+        setStatus("Не удалось загрузить machines.json или models.json. Откройте страницу через сервер, а не двойным щелчком");
       });
   </script>
 </body>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Модели оборудования</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #bar {
+      position: fixed; top: 10px; left: 0; right: 0; z-index: 10;
+      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    }
+    #bar button {
+      border: none; border-radius: 16px; padding: 8px 14px; font-size: 15px;
+      background: rgba(255, 255, 255, 0.9); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    #bar button.active { background: #333; color: white; }
+  </style>
+</head>
+<body>
+  <!-- Страница без камеры: показывает модели из models.json, чтобы рассмотреть их со всех сторон -->
+  <div id="bar">
+    <button data-id="lathe" class="active">Токарный 16К20</button>
+    <button data-id="mill">Фрезерный 6Р13Ф3</button>
+    <button data-id="printer">3D-принтер ПТ-300</button>
+    <button id="spin">Пауза</button>
+  </div>
+
+  <a-scene background="color: #e9ecef" xr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true">
+    <a-entity light="type: ambient; intensity: 0.7"></a-entity>
+    <a-entity light="type: directional; intensity: 0.9" position="1 2 1.5"></a-entity>
+
+    <!-- поворотный стол: модели стоят на нём и медленно вращаются -->
+    <a-entity id="turntable" position="0 0 -1.7"
+              animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear">
+      <a-cylinder radius="0.8" height="0.02" position="0 -0.01 0" color="#cfd4d9"></a-cylinder>
+      <a-entity id="model-lathe"><a-entity class="body"></a-entity></a-entity>
+      <a-entity id="model-mill" visible="false"><a-entity class="body"></a-entity></a-entity>
+      <a-entity id="model-printer" visible="false"><a-entity class="body"></a-entity></a-entity>
+    </a-entity>
+
+    <a-camera position="0 1.05 0" rotation="-22 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+  </a-scene>
+
+  <script src="models.js"></script>
+  <script>
+    loadModels(true); // карточки с данными здесь не нужны
+
+    const buttons = document.querySelectorAll("#bar button[data-id]");
+    for (const btn of buttons) {
+      btn.onclick = () => {
+        for (const b of buttons) {
+          b.classList.toggle("active", b === btn);
+          document.getElementById("model-" + b.dataset.id).setAttribute("visible", b === btn);
+        }
+      };
+    }
+
+    const table = document.getElementById("turntable");
+    let spinning = true;
+    document.getElementById("spin").onclick = (e) => {
+      spinning = !spinning;
+      table.components.animation[spinning ? "play" : "pause"]();
+      e.target.textContent = spinning ? "Пауза" : "Вращать";
+    };
+  </script>
+</body>
+</html>
