@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AR-паспорт оборудования</title>
+  <!-- A-Frame строит 3D-сцену, AR.js распознаёт маркеры на кадрах камеры -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe-master.min.js">
+  </script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js">
+  </script>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    #status {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+      padding: 14px; text-align: center; font-size: 17px;
+      color: white; background: rgba(0, 0, 0, 0.65);
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Наведите камеру на маркер оборудования</div>
+
+  <a-scene embedded vr-mode-ui="enabled: false"
+    renderer="logarithmicDepthBuffer: true; antialias: true"
+    arjs="sourceType: webcam; detectionMode: mono; debugUIEnabled: false">
+
+    <!-- Маркер 1: токарный станок -->
+    <a-marker id="lathe" type="pattern" url="markers/lathe.patt"
+              emitevents="true" smooth="true">
+      <a-box position="0 0.1 0" width="1" height="0.2" depth="0.4"
+             color="#4a5a6a"></a-box>
+      <a-box position="-0.37 0.35 0" width="0.26" height="0.3" depth="0.4"
+             color="#2f3b47"></a-box>
+      <a-cylinder position="-0.19 0.35 0" rotation="0 0 90" radius="0.12"
+                  height="0.08" color="#9aa3ab"></a-cylinder>
+      <a-cylinder position="0.06 0.35 0" rotation="0 0 90" radius="0.05"
+                  height="0.42" color="#c9a227"></a-cylinder>
+      <a-box position="0.38 0.32 0" width="0.16" height="0.24" depth="0.3"
+             color="#2f3b47"></a-box>
+      <a-sphere class="lamp" position="-0.37 0.57 0"
+                radius="0.07"></a-sphere>
+      <a-plane class="card" position="0 0.01 -1.55" rotation="-90 0 0"
+               width="2" height="1.25"></a-plane>
+    </a-marker>
+
+    <!-- Маркер 2: фрезерный станок с ЧПУ -->
+    <a-marker id="mill" type="pattern" url="markers/mill.patt"
+              emitevents="true" smooth="true">
+      <a-box position="0 0.08 0" width="0.9" height="0.16" depth="0.5"
+             color="#4a5a6a"></a-box>
+      <a-box position="0 0.4 -0.2" width="0.34" height="0.64" depth="0.16"
+             color="#2f3b47"></a-box>
+      <a-box position="0 0.6 -0.02" width="0.26" height="0.2" depth="0.28"
+             color="#2f3b47"></a-box>
+      <a-cylinder position="0 0.42 0.04" radius="0.04" height="0.16"
+                  color="#9aa3ab"></a-cylinder>
+      <a-box position="0 0.2 0.05" width="0.3" height="0.08" depth="0.2"
+             color="#c9a227"></a-box>
+      <a-sphere class="lamp" position="0 0.79 -0.2"
+                radius="0.07"></a-sphere>
+      <a-plane class="card" position="0 0.01 -1.55" rotation="-90 0 0"
+               width="2" height="1.25"></a-plane>
+    </a-marker>
+
+    <!-- Маркер 3: 3D-принтер -->
+    <a-marker id="printer" type="pattern" url="markers/printer.patt"
+              emitevents="true" smooth="true">
+      <a-box position="0 0.4 0" width="0.8" height="0.8" depth="0.8"
+             material="color: #2f3b47; wireframe: true"></a-box>
+      <a-box position="0 0.15 0" width="0.7" height="0.03" depth="0.7"
+             color="#4a5a6a"></a-box>
+      <a-cylinder position="0 0.24 0" radius="0.12" height="0.15"
+                  color="#c9a227"></a-cylinder>
+      <a-box position="0 0.5 0" width="0.14" height="0.1" depth="0.14"
+             color="#9aa3ab"></a-box>
+      <a-sphere class="lamp" position="0.32 0.87 -0.32"
+                radius="0.07"></a-sphere>
+      <a-plane class="card" position="0 0.01 -1.55" rotation="-90 0 0"
+               width="2" height="1.25"></a-plane>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    const STATE = {
+      ok:     { text: "Исправен",     color: "#2e9e4f" },
+      due:    { text: "Требуется ТО", color: "#e08a00" },
+      repair: { text: "На ремонте",   color: "#d33a2c" }
+    };
+
+    // "2026-11-02" -> "02.11.2026"
+    function formatDate(iso) {
+      if (!iso) return "после ремонта";
+      const [y, m, d] = iso.split("-");
+      return d + "." + m + "." + y;
+    }
+
+    // состояние вычисляется по данным: ремонт или просроченное ТО
+    function stateOf(m) {
+      if (m.repair) return STATE.repair;
+      const today = new Date().toISOString().slice(0, 10);
+      if (m.nextTO && m.nextTO < today) return STATE.due;
+      return STATE.ok;
+    }
+
+    // рисует карточку с данными на холсте и возвращает её как картинку
+    function makeCard(m, st) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+      const maxW = 600; // длинные строки сжимаются, а не обрезаются
+
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, 640, 400);
+      ctx.fillStyle = st.color;
+      ctx.fillRect(0, 0, 640, 76);
+
+      ctx.fillStyle = "white";
+      ctx.font = "bold 30px Arial";
+      ctx.fillText(m.name, 20, 50, maxW);
+
+      const lines = [
+        "Инвентарный номер: " + m.inv,
+        "Состояние: " + st.text,
+        "Последнее ТО: " + formatDate(m.lastTO),
+        "Следующее ТО: " + formatDate(m.nextTO),
+        "Ответственный: " + m.person,
+        "Внимание: " + m.note
+      ];
+      ctx.fillStyle = "black";
+      ctx.font = "27px Arial";
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], 20, 122 + i * 50, maxW);
+      }
+      return canvas.toDataURL();
+    }
+
+    const statusBar = document.getElementById("status");
+    const HINT = "Наведите камеру на маркер оборудования";
+    const shown = new Set(); // id маркеров, которые сейчас в кадре
+    let machines = {};
+
+    function updateStatus() {
+      statusBar.textContent = shown.size
+        ? "Распознано: " + [...shown].map(id => machines[id].name).join(", ")
+        : HINT;
+    }
+
+    function setup() {
+      for (const id in machines) {
+        const marker = document.getElementById(id);
+        if (!marker) continue; // запись без маркера на странице
+        const m = machines[id];
+        const st = stateOf(m);
+        const card = marker.querySelector(".card");
+        const lamp = marker.querySelector(".lamp");
+
+        // карточка с данными и пульсирующая сфера цвета состояния
+        card.setAttribute("material", { shader: "flat", src: makeCard(m, st) });
+        lamp.setAttribute("color", st.color);
+        lamp.setAttribute("animation", {
+          property: "scale", to: "1.4 1.4 1.4",
+          dir: "alternate", loop: true, dur: 700
+        });
+
+        marker.addEventListener("markerFound", () => { shown.add(id); updateStatus(); });
+        marker.addEventListener("markerLost",  () => { shown.delete(id); updateStatus(); });
+      }
+    }
+
+    // данные хранятся отдельно от кода и загружаются при открытии страницы
+    fetch("machines.json", { cache: "no-store" })
+      .then(r => r.json())
+      .then(data => {
+        machines = data;
+        const scene = document.querySelector("a-scene");
+        if (scene.hasLoaded) setup();
+        else scene.addEventListener("loaded", setup);
+      })
+      .catch(() => {
+        statusBar.textContent =
+          "Не удалось загрузить machines.json. Откройте страницу через Live Server, а не двойным щелчком по файлу";
+      });
+  </script>
+</body>
+</html>
