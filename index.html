@@ -71,14 +71,15 @@
     <a-entity light="type: directional; intensity: 0.9" position="0.5 1 1"></a-entity>
 
     <!-- Подставка: стоит там, где последний найденный маркер, и остаётся, когда маркер пропал.
-         У MindAR маркер лежит в плоскости XY, ось Z направлена к камере. Модели построены
-         с осью Y «вверх», поэтому каждая повёрнута на 90° вокруг X и встаёт над картинкой. -->
+         У MindAR маркер лежит в плоскости XY: ось Y — вверх по картинке, ось Z — к камере.
+         Маркер висит вертикально (табличка на станке или экран ноутбука), поэтому модель
+         стоит на нижнем крае маркера (сдвиг -0.5 по Y) и выдвинута вперёд, к зрителю. -->
     <a-entity id="holder">
 
       <!-- Модели собираются из деталей, описанных в models.json (см. models.js) -->
-      <a-entity id="model-lathe" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
-      <a-entity id="model-mill" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
-      <a-entity id="model-printer" visible="false"><a-entity class="body" rotation="90 0 0"></a-entity></a-entity>
+      <a-entity id="model-lathe" visible="false"><a-entity class="body" position="0 -0.5 0.35"></a-entity></a-entity>
+      <a-entity id="model-mill" visible="false"><a-entity class="body" position="0 -0.5 0.35"></a-entity></a-entity>
+      <a-entity id="model-printer" visible="false"><a-entity class="body" position="0 -0.5 0.35"></a-entity></a-entity>
     </a-entity>
 
     <!-- Маркеры только распознают картинки: targetIndex — номер картинки в targets.mind -->
