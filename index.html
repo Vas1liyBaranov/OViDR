@@ -16,10 +16,45 @@
       padding: 14px; text-align: center; font-size: 17px;
       color: white; background: rgba(0, 0, 0, 0.65);
     }
+    /* панель с данными: остаётся на экране после распознавания */
+    #panel {
+      position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 10;
+      max-width: 520px; margin: 0 auto; display: none;
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+    #panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; color: white; font-weight: bold; font-size: 17px;
+    }
+    #panel-close {
+      border: none; background: rgba(255, 255, 255, 0.25); color: white;
+      font-size: 18px; width: 32px; height: 32px; border-radius: 16px;
+      cursor: pointer; flex-shrink: 0; margin-left: 10px;
+    }
+    #panel-body { padding: 10px 14px; font-size: 15px; line-height: 1.6; }
+    #panel-body b { color: #555; font-weight: normal; }
+    #history {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px;
+    }
+    #history button {
+      border: 1px solid #ccc; background: #f4f4f4; border-radius: 14px;
+      padding: 5px 10px; font-size: 13px; cursor: pointer;
+    }
+    #history button.active { background: #333; color: white; border-color: #333; }
   </style>
 </head>
 <body>
   <div id="status">Наведите камеру на маркер оборудования</div>
+
+  <div id="panel">
+    <div id="panel-head">
+      <span id="panel-title"></span>
+      <button id="panel-close" title="Закрыть">✕</button>
+    </div>
+    <div id="panel-body"></div>
+    <div id="history"></div>
+  </div>
 
   <a-scene embedded vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true; antialias: true"
@@ -143,11 +178,70 @@
     const shown = new Set(); // id маркеров, которые сейчас в кадре
     let machines = {};
 
+    const scanned = [];   // id оборудования, отсканированного за сеанс
+    let current = null;   // id оборудования, которое показано в панели
+
     function updateStatus() {
-      statusBar.textContent = shown.size
-        ? "Распознано: " + [...shown].map(id => machines[id].name).join(", ")
-        : HINT;
+      if (shown.size) {
+        statusBar.textContent =
+          "Распознано: " + [...shown].map(id => machines[id].name).join(", ");
+      } else if (current) {
+        statusBar.textContent = "Маркер вне кадра, данные сохранены";
+      } else {
+        statusBar.textContent = HINT;
+      }
     }
+
+    // панель внизу экрана: данные остаются, пока её не закроют
+    function showPanel(id) {
+      const m = machines[id];
+      const st = stateOf(m);
+      current = id;
+      if (!scanned.includes(id)) scanned.push(id);
+
+      document.getElementById("panel-head").style.background = st.color;
+      document.getElementById("panel-title").textContent = m.name;
+
+      const body = document.getElementById("panel-body");
+      body.textContent = "";
+      const rows = [
+        ["Инвентарный номер", m.inv],
+        ["Состояние", st.text],
+        ["Последнее ТО", formatDate(m.lastTO)],
+        ["Следующее ТО", formatDate(m.nextTO)],
+        ["Ответственный", m.person],
+        ["Внимание", m.note]
+      ];
+      for (const [label, value] of rows) {
+        const div = document.createElement("div");
+        const b = document.createElement("b");
+        b.textContent = label + ": ";
+        div.append(b, value);
+        body.append(div);
+      }
+
+      // кнопки для переключения между уже отсканированным оборудованием
+      const history = document.getElementById("history");
+      history.textContent = "";
+      if (scanned.length > 1) {
+        for (const sid of scanned) {
+          const btn = document.createElement("button");
+          btn.textContent = machines[sid].name;
+          if (sid === id) btn.className = "active";
+          btn.onclick = () => showPanel(sid);
+          history.append(btn);
+        }
+      }
+
+      document.getElementById("panel").style.display = "block";
+      updateStatus();
+    }
+
+    document.getElementById("panel-close").onclick = () => {
+      document.getElementById("panel").style.display = "none";
+      current = null;
+      updateStatus();
+    };
 
     function setup() {
       for (const id in machines) {
@@ -166,7 +260,7 @@
           dir: "alternate", loop: true, dur: 700
         });
 
-        marker.addEventListener("markerFound", () => { shown.add(id); updateStatus(); });
+        marker.addEventListener("markerFound", () => { shown.add(id); showPanel(id); });
         marker.addEventListener("markerLost",  () => { shown.delete(id); updateStatus(); });
       }
     }
